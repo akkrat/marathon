@@ -1,8 +1,12 @@
 name: "sample-ios-app tests"
 outputDir: "derived-data/Marathon"
-testClassRegexes: ["^((?!Abstract).)*Tests$"]
+testClassRegexes: [".*"]
 poolingStrategy:
-  type: "omni"
+  type: "combo"
+  list:
+    - type: "omni"
+    - type: "device-model"
+    - type: "os-version"
 batchingStrategy:
   type: "fixed-size"
   size: 5
@@ -21,3 +25,5 @@ vendorConfiguration:
   xcresult:
     pull: true
     remoteClean: true
+  alwaysEraseSimulators: true
+  debugSsh: true

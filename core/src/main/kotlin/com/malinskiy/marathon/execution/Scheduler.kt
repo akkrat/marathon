@@ -15,6 +15,8 @@ import com.malinskiy.marathon.execution.bundle.TestBundleIdentifier
 import com.malinskiy.marathon.execution.progress.ProgressReporter
 import com.malinskiy.marathon.extension.toPoolingStrategy
 import com.malinskiy.marathon.log.MarathonLogging
+import com.malinskiy.marathon.test.Test
+import com.malinskiy.marathon.test.mrValues
 import com.malinskiy.marathon.time.Timer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -111,7 +113,20 @@ class Scheduler(
         logger.debug { "device ${device.serialNumber} associated with poolId ${poolId.name}" }
         pools.computeIfAbsent(poolId) { id ->
             logger.debug { "pool actor ${id.name} is being created" }
-            DevicePoolActor(id, configuration, analytics, shard, progressReporter, track, timer, parent, context, testBundleIdentifier)
+            val predicate = { it: Test ->
+                val meta = it.mrValues()
+                val os = "iOS-" + (meta["ios"] as String? ?: "15").substringBefore(".")
+                val model = meta["device"] ?: "iPhone 8 Plus"
+                device.operatingSystem.version.contains(os) && (model == device.model)
+            }
+            val filteredShard = TestShard(
+                shard.tests.filter(predicate),
+                shard.flakyTests.filter(predicate)
+            )
+            if (filteredShard.tests.count() != shard.tests.count()) {
+                logger.info { "pool association drops some tests: ${shard.tests.count()} -> ${filteredShard.tests.count()}" }
+            }
+            DevicePoolActor(id, configuration, analytics, filteredShard, progressReporter, track, timer, parent, context, testBundleIdentifier)
         }
         pools[poolId]?.send(AddDevice(device)) ?: logger.debug {
             "not sending the AddDevice event " +

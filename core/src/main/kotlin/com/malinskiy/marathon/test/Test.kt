@@ -43,3 +43,5 @@ fun Test.toClassName(separator: Char = '.'): String {
 fun Test.toSimpleSafeTestName(): String = "$clazz.$method"
 
 fun Test.toSafeTestName() = toTestName(methodSeparator = '.')
+
+fun Test.mrValues() = metaProperties.firstOrNull { it.name == "mr" }?.values ?: emptyMap()

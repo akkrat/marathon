@@ -5,12 +5,17 @@ import com.malinskiy.marathon.execution.TestParser
 import com.malinskiy.marathon.ios.xctestrun.Xctestrun
 import com.malinskiy.marathon.log.MarathonLogging
 import com.malinskiy.marathon.test.Test
+import com.malinskiy.marathon.test.MetaProperty
 import java.io.File
 
-class IOSTestParser(private val vendorConfiguration: VendorConfiguration.IOSConfiguration) : TestParser {
-    private val swiftTestClassRegex = """class ([^:\s]+)\s*:\s*XCTestCase""".toRegex()
-    private val swiftTestMethodRegex = """^.*func\s+(test[^(\s]*)\s*\(.*$""".toRegex()
+private fun Sequence<File>.filter(contentsRegex: Regex): Sequence<File> {
+    return filter { it.contains(contentsRegex) }
+}
 
+class IOSTestParser(private val vendorConfiguration: VendorConfiguration.IOSConfiguration) : TestParser {
+    private val swiftTestClassRegex = """class\s+([^:\s]+TestCase)[\s:$]*""".toRegex()
+    private val swiftTestMethodRegex = """^\s*func\s+(test[^(\s]*)\s*\(.*$""".toRegex()
+    private val metaRegex = """^\s*(//|\*)\s*@(\w+)\s*:\s*(.+)\s*$""".toRegex()
     private val logger = MarathonLogging.logger(IOSTestParser::class.java.simpleName)
 
     /**
@@ -35,16 +40,32 @@ class IOSTestParser(private val vendorConfiguration: VendorConfiguration.IOSConf
         val implementedTests = mutableListOf<Test>()
         for (file in swiftFilesWithTests) {
             var testClassName: String? = null
+            val parsedMeta = mutableMapOf<String, String>()
+            val testMeta = mutableMapOf<String, String>()
+            val testClassMeta = mutableMapOf<String, String>()
             for (line in file.readLines()) {
                 val className = line.firstMatchOrNull(swiftTestClassRegex)
                 val methodName = line.firstMatchOrNull(swiftTestMethodRegex)
+                val metaMatch = metaRegex.find(line)?.groupValues
+
+                if (metaMatch != null) {
+                    parsedMeta[metaMatch.get(2)] = metaMatch.get(3)
+                }
 
                 if (className != null) {
+                    testClassMeta.clear()
+                    testClassMeta.putAll(parsedMeta)
+                    parsedMeta.clear()
                     testClassName = className
                 }
 
                 if (testClassName != null && methodName != null) {
-                    implementedTests.add(Test(targetName, testClassName, methodName, emptyList()))
+                    testMeta.clear()
+                    testMeta.putAll(testClassMeta)
+                    testMeta.putAll(parsedMeta)
+                    parsedMeta.clear()
+                    logger.info { testMeta.map { "${it.key}: ${it.value} "}.joinToString() }
+                    implementedTests.add(Test(targetName, testClassName, methodName, listOf(MetaProperty("mr", testMeta))))
                 }
             }
         }
@@ -56,10 +77,6 @@ class IOSTestParser(private val vendorConfiguration: VendorConfiguration.IOSConf
 
         return filteredTests
     }
-}
-
-private fun Sequence<File>.filter(contentsRegex: Regex): Sequence<File> {
-    return filter { it.contains(contentsRegex) }
 }
 
 private fun File.listFiles(extension: String): Sequence<File> {

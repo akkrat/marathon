@@ -58,7 +58,7 @@ class Xctestrun(inputStream: InputStream) {
     /**
      * @see <a href="x-man-page://5/xcodebuild.xctestrun">xcodebuild.xctestrun(5)</a>
      */
-    private val skipTestIdentifiers = propertyList.valueForKeypath(target, PropertyListKey.SkipTestIdentifiers) as Array<Any>
+    private val skipTestIdentifiers = (propertyList.valueForKeypath(target, PropertyListKey.SkipTestIdentifiers) as Array<Any>?).orEmpty()
 
     /**
      * Returns `true` if specified test should be excluded from the test run.
